@@ -1,0 +1,64 @@
+name: LAST PERSON - Render a test Short
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Story preset"
+        required: true
+        type: choice
+        options:
+          - last_person_horror
+          - ghost_stories
+        default: last_person_horror
+      topic:
+        description: "Optional story idea"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: last-person-horror
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate video (no publishing)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          EDGE_TTS_VOICE: en-US-ChristopherNeural
+        run: |
+          if [ -n "${{ inputs.topic }}" ]; then
+            python scripts/run_short.py --channel "${{ inputs.channel }}" --topic "${{ inputs.topic }}"
+          else
+            python scripts/run_short.py --channel "${{ inputs.channel }}"
+          fi
+
+      - name: Save finished MP4 as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: last-person-video-${{ github.run_number }}
+          path: output/runs/**/*.mp4
+          if-no-files-found: error
+          retention-days: 7
