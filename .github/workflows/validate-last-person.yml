@@ -1,0 +1,61 @@
+name: Validate LAST PERSON renderer
+
+on:
+  push:
+    branches:
+      - last-person-horror
+    paths:
+      - "pipeline/**"
+      - "scripts/**"
+      - "requirements.txt"
+      - ".github/workflows/validate-last-person.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Check Python syntax
+        run: python -m compileall -q pipeline scripts
+      - name: Render a 60-second animation smoke test
+        run: |
+          mkdir -p /tmp/last-person-test
+          ffmpeg -y -f lavfi -i "sine=frequency=180:duration=60" -q:a 8 /tmp/last-person-test/test.mp3
+          cat > /tmp/last-person-test/test.srt <<'EOF'
+          1
+          00:00:00,000 --> 00:00:04,000
+          LAST PERSON RENDER TEST
+          EOF
+          python - <<'PY'
+          from pathlib import Path
+          from pipeline.stickman_animation import render_stickman_horror
+          root = Path("/tmp/last-person-test")
+          prompts = [
+              "A lonely person walks through a dark hallway",
+              "A door slowly opens in an empty house",
+              "A shadow appears beside the staircase",
+              "A figure watches from the darkness",
+              "The person turns around in fear",
+              "A second silhouette approaches",
+              "A final reveal in a dark room",
+          ]
+          render_stickman_horror(
+              prompts, 60.0, root / "test.mp3", root / "test.srt", root / "test.mp4"
+          )
+          print("Rendered:", (root / "test.mp4").stat().st_size, "bytes")
+          PY
+          ffprobe -v error -show_entries stream=width,height -show_entries format=duration -of default=noprint_wrappers=1 /tmp/last-person-test/test.mp4
