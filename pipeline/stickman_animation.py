@@ -87,14 +87,13 @@ def _background(draw: ImageDraw.ImageDraw, prompt: str, beat: int, progress: flo
 def _frame(prompt: str, beat: int, frame_index: int, frames_in_beat: int) -> Image.Image:
     progress = frame_index / max(1, frames_in_beat - 1)
     phase = frame_index / FPS + beat * 0.8
-    image = Image.new("RGB", (WIDTH, HEIGHT))
-    px = image.load()
-    for yy in range(HEIGHT):
+    image = Image.new("RGB", (WIDTH, HEIGHT), BG_TOP)
+    d = ImageDraw.Draw(image)
+    # Draw a vertical gradient by horizontal bands; avoids per-pixel Python loops.
+    for yy in range(0, HEIGHT, 8):
         t = yy / HEIGHT
         c = tuple(int(_lerp(BG_TOP[i], BG_BOTTOM[i], t)) for i in range(3))
-        for xx in range(WIDTH):
-            px[xx, yy] = c
-    d = ImageDraw.Draw(image)
+        d.rectangle((0, yy, WIDTH, min(HEIGHT, yy + 8)), fill=c)
     _background(d, prompt, beat, progress)
     # Slow camera drift and a character that subtly walks, turns, and recoils.
     base_x = WIDTH * (0.42 + 0.08 * math.sin(beat * 1.4))
