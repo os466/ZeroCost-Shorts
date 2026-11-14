@@ -8,8 +8,9 @@ on:
         required: true
         type: choice
         options:
+          - last_person_horror
           - ghost_stories
-        default: ghost_stories
+        default: last_person_horror
       topic:
         description: "Optional story idea"
         required: false
@@ -44,7 +45,6 @@ jobs:
       - name: Generate video (no publishing)
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          DEAPI_TOKEN: ${{ secrets.DEAPI_TOKEN }}
           EDGE_TTS_VOICE: en-US-ChristopherNeural
         run: |
           if [ -n "${{ inputs.topic }}" ]; then
