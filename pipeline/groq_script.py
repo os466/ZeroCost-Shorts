@@ -75,6 +75,9 @@ def generate_short_pack(
 def _generate_single(preset: ChannelPreset, user: str, n: int) -> dict[str, Any]:
     language = (preset.get("language") or "en").lower()
     lo, hi, blurb = LANG_WORD_TARGETS.get(language, LANG_WORD_TARGETS["en"])
+    if preset.get("renderer") == "stickman":
+        lo, hi = 150, 190
+        blurb = "150-190 English words for a 60-90 second horror narration; use a strong hook, escalating tension, and a final twist"
 
     if language == "hi":
         narration_rule = (
