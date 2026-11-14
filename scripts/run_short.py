@@ -49,6 +49,7 @@ from pipeline.edge_tts_synth import synthesize_full
 from pipeline.groq_script import generate_short_pack
 from pipeline.images import DEFAULT_NEGATIVE, full_visual_prompt, save_scene_image
 from pipeline.render_short import render_vertical_short
+from pipeline.stickman_animation import render_stickman_horror
 from pipeline.story_history import save_title
 
 
@@ -62,6 +63,7 @@ def _render_and_upload(
     font_file: str,
     font_name: str,
     image_paths: list,
+    scene_prompts: list[str] | None = None,
     run_dir: Path,
     suffix: str,
     upload: bool,
@@ -75,9 +77,9 @@ def _render_and_upload(
     print(f"② Edge TTS ({voice or 'default'})…")
     total_dur, sentence_timings = synthesize_full(narration, audio_path, voice=voice)
     print(f"   Audio: {total_dur:.1f}s ({len(sentence_timings)} sentences tracked)")
-    if total_dur > 55:
-        print(f"   ⚠ Audio is {total_dur:.0f}s — target is 30-45s")
-    if total_dur < 25:
+    if scene_prompts is not None and not 60 <= total_dur <= 90:
+        raise RuntimeError(f"LAST PERSON voiceover must be 60-90 seconds; got {total_dur:.1f}s. Regenerate the story.")
+    if scene_prompts is None and total_dur < 25:
         print(f"   ⚠ Audio is {total_dur:.0f}s — might be too short")
 
     srt_path = run_dir / f"captions{suffix}.srt"
@@ -85,11 +87,15 @@ def _render_and_upload(
     build_srt(sentence_timings, srt_path, total_dur)
 
     video_path = run_dir / f"short{suffix}.mp4"
-    print(f"⑤ FFmpeg: rendering 1080×1920 (font={font_name})…")
-    render_vertical_short(
-        image_paths, total_dur, audio_path, srt_path, video_path,
-        font_file=font_file, font_name=font_name,
-    )
+    if scene_prompts is not None:
+        print("⑤ Rendering original 2D stickman animation (720p frames → 1080×1920 output)…")
+        render_stickman_horror(scene_prompts, total_dur, audio_path, srt_path, video_path)
+    else:
+        print(f"⑤ FFmpeg: rendering 1080×1920 (font={font_name})…")
+        render_vertical_short(
+            image_paths, total_dur, audio_path, srt_path, video_path,
+            font_file=font_file, font_name=font_name,
+        )
     print(f"   → {video_path}")
 
     if upload:
@@ -173,29 +179,33 @@ def main() -> None:
         history_title = title
         history_narration = narration
 
-    # ── 2. Images via DeAPI (generated ONCE, shared by all variants) ──
-    w = int(os.environ.get("DEAPI_IMAGE_WIDTH", "768"))
-    h = int(os.environ.get("DEAPI_IMAGE_HEIGHT", "768"))
-    style_suffix = preset.get("image_style_suffix")
-    negative = (
-        os.environ.get("IMAGE_NEGATIVE_PROMPT")
-        or preset.get("image_negative_prompt")
-        or DEFAULT_NEGATIVE
-    )
-    cooldown = int(os.environ.get("DEAPI_COOLDOWN", "10"))
-
-    print(f"③ Images: {len(image_prompts)} scenes ({cooldown}s cooldown)…")
+    # ── 2. Visuals: procedural stickman animation or legacy generated images ──
+    scene_prompts: list[str] | None = None
     image_paths: list[Path] = []
-    for i, ip in enumerate(image_prompts):
-        prompt = full_visual_prompt(ip, style_suffix=style_suffix)
-        out = img_dir / f"scene_{i + 1:02d}.png"
-        st, detail = save_scene_image(i + 1, prompt, out, width=w, height=h, negative=negative)
-        if st != "ok":
-            raise RuntimeError(f"Image {i + 1} failed: {detail}")
-        print(f"   scene {i + 1}/{len(image_prompts)}: {detail}")
-        image_paths.append(out)
-        if i < len(image_prompts) - 1:
-            time.sleep(cooldown)
+    if preset.get("renderer") == "stickman":
+        scene_prompts = image_prompts
+        print(f"③ Visuals: {len(scene_prompts)} original animated stickman scenes (no image API)")
+    else:
+        w = int(os.environ.get("DEAPI_IMAGE_WIDTH", "768"))
+        h = int(os.environ.get("DEAPI_IMAGE_HEIGHT", "768"))
+        style_suffix = preset.get("image_style_suffix")
+        negative = (
+            os.environ.get("IMAGE_NEGATIVE_PROMPT")
+            or preset.get("image_negative_prompt")
+            or DEFAULT_NEGATIVE
+        )
+        cooldown = int(os.environ.get("DEAPI_COOLDOWN", "10"))
+        print(f"③ Images: {len(image_prompts)} scenes ({cooldown}s cooldown)…")
+        for i, ip in enumerate(image_prompts):
+            prompt = full_visual_prompt(ip, style_suffix=style_suffix)
+            out = img_dir / f"scene_{i + 1:02d}.png"
+            st, detail = save_scene_image(i + 1, prompt, out, width=w, height=h, negative=negative)
+            if st != "ok":
+                raise RuntimeError(f"Image {i + 1} failed: {detail}")
+            print(f"   scene {i + 1}/{len(image_prompts)}: {detail}")
+            image_paths.append(out)
+            if i < len(image_prompts) - 1:
+                time.sleep(cooldown)
 
     # ── 4-6. Render (per variant) ────────────────────────────────────
     if variants:
@@ -210,6 +220,7 @@ def main() -> None:
                 font_file=v.get("caption_font", "CreepsterCaps.ttf"),
                 font_name=v.get("caption_font_name", "Creepster"),
                 image_paths=image_paths,
+                scene_prompts=scene_prompts,
                 run_dir=run_dir,
                 suffix=f"_{v['lang']}",
                 upload=args.upload,
@@ -226,6 +237,7 @@ def main() -> None:
             font_file=preset.get("caption_font", "CreepsterCaps.ttf"),
             font_name=preset.get("caption_font_name", "Creepster"),
             image_paths=image_paths,
+            scene_prompts=scene_prompts,
             run_dir=run_dir,
             suffix="",
             upload=args.upload,
