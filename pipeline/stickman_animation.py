@@ -156,15 +156,30 @@ def render_stickman_horror(scene_prompts: list[str], duration: float,
 
     subtitle_path = Path(srt_path).resolve()
     audio_path = Path(audio_path).resolve()
+    ambience_path = out_path.with_name("horror_ambience.wav")
+    # Original, procedurally generated ambient drone; no copyrighted music or API.
+    subprocess.run([
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "lavfi", "-i", f"sine=frequency=48:sample_rate=44100:duration={duration:.3f}",
+        "-f", "lavfi", "-i", f"anoisesrc=color=pink:amplitude=0.035:sample_rate=44100:duration={duration:.3f}",
+        "-filter_complex",
+        "[0:a]volume=0.22[tone];[1:a]lowpass=f=420,volume=0.28[air];"
+        "[tone][air]amix=inputs=2:duration=longest,afade=t=in:st=0:d=2,"
+        f"afade=t=out:st={max(0, duration - 3):.3f}:d=3[bed]",
+        "-map", "[bed]", "-c:a", "pcm_s16le", str(ambience_path),
+    ], check=True)
     # Escape characters used by FFmpeg's subtitles filter parser.
-    subtitle_arg = str(subtitle_path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+    subtitle_arg = str(subtitle_path).replace("\\\\", "/").replace(":", "\\\\:").replace("'", "\\\\'")
     mux = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "warning",
-        "-i", str(silent_path), "-i", str(audio_path),
+        "-i", str(silent_path), "-i", str(audio_path), "-i", str(ambience_path),
+        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]volume=0.22[amb];"
+        "[voice][amb]amix=inputs=2:duration=first:dropout_transition=2[mixed]",
         "-vf", f"scale=1080:1920:flags=fast_bilinear,subtitles='{subtitle_arg}':force_style='FontName=Arial,FontSize=19,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=145,MarginL=70,MarginR=70'",
-        "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "fast",
+        "-map", "0:v:0", "-map", "[mixed]", "-c:v", "libx264", "-preset", "fast",
         "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
         "-shortest", "-movflags", "+faststart", str(out_path.resolve()),
     ]
     subprocess.run(mux, check=True)
     silent_path.unlink(missing_ok=True)
+    ambience_path.unlink(missing_ok=True)
