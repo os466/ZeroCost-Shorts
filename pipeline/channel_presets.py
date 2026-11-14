@@ -299,6 +299,40 @@ PRESETS: dict[str, ChannelPreset] = {
             "an accidental scientific breakthrough",
         ],
     },
+    "last_person_horror": {
+        "id": "last_person_horror",
+        "label": "LAST PERSON — original animated psychological and supernatural horror",
+        "language": "en",
+        "min_words": 145,
+        "renderer": "stickman",
+        "tts_voice": "en-US-ChristopherNeural",
+        "groq_system_hint": (
+            "You write original, cinematic short horror stories for LAST PERSON. "
+            "Write one complete spoken story in English, 150-190 words, designed for a 60-90 second narration. "
+            "Use a powerful first-sentence hook, escalating tension, vivid but simple visual actions, "
+            "and a final twist that changes how the viewer understands the story. "
+            "Make it sound like a real person telling a disturbing story, not an AI summary. "
+            "Avoid cliches, repetitive phrasing, excessive exposition, and cheap random endings. "
+            "Keep it PG-13: no graphic gore, sexual violence, or harm to children. "
+            "All characters and events must be fictional and original. "
+            "Return exactly 7 distinct scene image_prompts in English, each describing a clear visible action "
+            "or setting in chronological order. The visuals will be redrawn as simple animated stick figures, "
+            "so describe actions, location, mood, and props rather than complex faces or photorealistic details."
+        ),
+        "segment_count": 7,
+        "topic_pool": [
+            "a man hears someone breathing inside his locked wardrobe",
+            "a night-shift worker sees his own reflection arrive late",
+            "a woman receives voice messages from tomorrow",
+            "an empty train keeps announcing a passenger who is not there",
+            "a child draws a stranger standing behind the family in every photo",
+            "a hotel room has one extra door every night",
+            "a security guard watches himself enter a building he never visited",
+            "someone keeps turning the hallway light on from an empty room",
+            "a man finds wet footprints leading from his ceiling to his bed",
+            "a voice from the basement knows what he is thinking"
+        ],
+    },
     "ghost_stories": {
         "id": "ghost_stories",
         "label": "Ghost / horror storytime Short",
